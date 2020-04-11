@@ -1,0 +1,26 @@
+[package]
+name = "dma-poc"
+version = "0.1.0"
+authors = ["Jan Teske <jteske@posteo.net>"]
+edition = "2018"
+
+[dependencies]
+as-slice = "0.1"
+cortex-m = "0.6"
+cortex-m-rt = "0.6"
+cortex-m-semihosting = "0.3"
+panic-semihosting = "0.5"
+
+[dependencies.stable_deref_trait]
+version = "1"
+default-features = false
+
+[dependencies.stm32f3]
+version = "0.10"
+features = ["rt", "stm32f303"]
+
+[profile.release]
+codegen-units = 1
+debug = true
+lto = true
+opt-level = 3
