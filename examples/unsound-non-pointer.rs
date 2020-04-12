@@ -1,31 +1,26 @@
-//! This is a PoC that shows that using `Pin` is not sufficient to ensure
-//! a DMA buffer is fixed in memory.
+//! This is a PoC that shows that using a non-pointer buffer is unsafe.
 
 #![no_std]
 #![no_main]
 
 use as_slice::AsMutSlice;
-use core::{
-    ops::{Deref, DerefMut},
-    pin::Pin,
-    sync::atomic::{self, Ordering},
-};
+use core::sync::atomic::{self, Ordering};
 use cortex_m_rt::entry;
 use cortex_m_semihosting::hprintln;
 use dma_poc::Dma;
 
-/// Transfer implementation that attempts to use `Pin` instead of
-/// `StableDeref` to ensure the DMA buffer is stable in memory.
+/// Transfer implementation that doesn't restrict `B` to be a pointer type.
+///
+/// Note: Left out the `Drop` impl for simplicity, it wouldn't help here.
 pub struct Transfer<B> {
     dma: Dma,
-    buffer: Pin<B>,
+    buffer: B,
 }
 
 impl<B> Transfer<B> {
-    pub fn start(src: &'static [u8], mut dst: Pin<B>) -> Self
+    pub fn start(src: &'static [u8], mut dst: B) -> Self
     where
-        B: DerefMut + 'static,
-        B::Target: AsMutSlice<Element = u8> + Unpin,
+        B: AsMutSlice<Element = u8>,
     {
         let slice = dst.as_mut_slice();
 
@@ -40,7 +35,7 @@ impl<B> Transfer<B> {
         Transfer { dma, buffer: dst }
     }
 
-    pub fn wait(mut self) -> Result<(Dma, Pin<B>), ()> {
+    pub fn wait(mut self) -> Result<(Dma, B), ()> {
         while !self.dma.transfer_complete() {
             if self.dma.transfer_error() {
                 return Err(());
@@ -54,25 +49,6 @@ impl<B> Transfer<B> {
     }
 }
 
-/// Using this buffer with DMA is unsafe since its allocated on the stack
-/// and will therefore move around. `Pin` doesn't prevent us from using
-/// this buffer type.
-#[derive(Debug)]
-struct Buffer([u8; 16]);
-
-impl Deref for Buffer {
-    type Target = [u8];
-    fn deref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl DerefMut for Buffer {
-    fn deref_mut(&mut self) -> &mut [u8] {
-        &mut self.0
-    }
-}
-
 const SRC: &[u8; 16] = b"THIS IS DMADATA!";
 
 #[entry]
@@ -81,7 +57,7 @@ fn main() -> ! {
     let (_dma, dst) = transfer.wait().expect("Transfer error");
 
     // this panics
-    assert_eq!(*dst, *SRC);
+    assert_eq!(dst, *SRC);
 
     hprintln!("Transfer finished successfully").unwrap();
     loop {
@@ -90,7 +66,7 @@ fn main() -> ! {
 }
 
 #[inline(never)]
-fn start() -> Transfer<Buffer> {
-    let dst = Buffer([0; 16]);
-    Transfer::start(SRC, Pin::new(dst))
+fn start() -> Transfer<[u8; 16]> {
+    let dst = [0; 16];
+    Transfer::start(SRC, dst)
 }
