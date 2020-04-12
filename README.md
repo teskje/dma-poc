@@ -102,6 +102,13 @@ See [examples/unsound-non-static.rs](examples/unsound-non-static.rs).
      be freed until the pointer is dropped. Since `mem::forget` explicitly
      does not drop whatever is passed to it, the memory will not be freed
      either.
+     
+  3. Shared pointer types (`Rc<T>`, `Arc<T>`):
+  
+     The memory those pointers reference won't be dropped as long as there
+     is still a (shared) reference to it (i.e. reference count > 0). Again,
+     since `mem::forget` prevents dropping, a shared pointer's reference
+     will never be given back, so the referenced buffer won't be freed.
 
 - The `'static` bound can be dropped if the user of the `Transfer` promises
   to never call `mem::forget` on it or leak it in any other way. This cannot
