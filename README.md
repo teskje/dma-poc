@@ -33,13 +33,6 @@ See [examples/unsound-non-pointer.rs](examples/unsound-non-pointer.rs).
   B: DerefMut + StableDeref // for buffers DMA writes to
   ```
 
-  Note: `StableDeref` provides stronger guarantees than just "Must be a
-  pointer". In particular it requires that all derefs must resolve to the
-  same memory location. That sounds like a useful guarantee to have for a
-  DMA buffer, and maybe should even be specified as another requirement?
-  I don't see how an unstable deref would break memory safety, but it would
-  certainly keep the implementation sane.
-
 - **[unsound]** Wrapping `B` in a `Pin` does *not* satisfy this requirement as
   `Pin` doesn't provide sufficient guarantees.
 
