@@ -126,7 +126,7 @@ See [examples/unsound-non-static.rs](examples/unsound-non-static.rs).
 - Are the above requirements on `B` enough to ensure safe DMA?
   - Currently we have:
 
-    ```
+    ```rust
     B: Deref + StableDeref + 'static    // for buffers DMA reads from
     B: DerefMut + StableDeref + 'static // for buffers DMA writes to
     ```
@@ -149,3 +149,27 @@ See [examples/unsound-non-static.rs](examples/unsound-non-static.rs).
     - Probably not, can be done separately.
     - We should just make sure our final recommendation doesn't prevent
       common approaches to specifying alignment requirements.
+      
+- What `Target` should `B` have ?
+  - The final type for the DMA must be a slice of some sort. But with a strict specification (i.e. `Target = [T]`) we lose some flexibility, one common use case is to be able to pass in a wrapper type around `MaybeUninit`s or even a `Box<[u8; N]>`.
+  - We could also accept wrapper types where `B::Target: Deref<Target = [T]>`, but we need some way to ensure that this second `deref` will not invalidate the `StableDeref` guarantees of `B`, do we need another trait here to express this requirement ? Example that works both with slices or "wrapper" types around slices:
+    ```rust
+    use core::ops::Deref;
+    use core::convert::AsRef;
+
+    fn print_it<B>(buffer: B)
+    where
+      B: Deref,
+      // AsRef is used as an example here, but it doesn't guarantee our requirements
+      B::Target: AsRef<[u8]>,
+    {
+      println!("{:?}", &*buffer.as_ref());
+    }
+
+    fn main() {
+      let buffer = Box::new([1u8; 4]);
+      let buffer2 = [0u8; 4];
+      print_it(buffer);
+      print_it(&buffer2[..])
+    }
+    ```
