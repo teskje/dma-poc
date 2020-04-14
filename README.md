@@ -32,6 +32,7 @@ S: zerocopy::FromBytes
 - `alloc::boxed::Box<S>`
 - `alloc::vec::Vec<S>`
 - `bbqueue::GrantW`
+- `heapless::pool::Box`
 
 ### Safe for DMA reads only
 
@@ -162,10 +163,10 @@ See [examples/unsound-non-static.rs].
 ## Open Questions
 
 - What are other specific buffer types we want to support?
-  - `heapless` types?
+  - Common `heapless` types?
     - Probably not generally possible, because they can be allocated on the
       stack
-    - `heapless::pool::Box` may be an exception?
+    - `heapless::pool::Box` is an exception
 
 - Are the above requirements on `B` enough to ensure safe DMA?
   - Currently we have:
