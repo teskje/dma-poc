@@ -20,11 +20,12 @@ should be supported by whatever we come up with.
 Let `T` be any type.
 
 Let `S` be any type for which any byte pattern is valid. That is, any type
-that fulfills [`zerocopy::FromBytes`].
+that fulfills [`zerocopy::FromBytes`]. For example:
 
-```rust
-S: zerocopy::FromBytes
-```
+- `u8`, `u16`, `u32`, `u64`
+- `[u8]`, `[u16]`, `[u32]`, `[u64]`,
+- `[u8; N]`, `[u16; N]`, `[u32; N]`, `[u64; N]`
+- `Wrapper([u8; 16])`
 
 ### Safe for DMA reads and writes
 
@@ -161,12 +162,6 @@ See [examples/unsound-non-static.rs].
 
 
 ## Open Questions
-
-- What are other specific buffer types we want to support?
-  - Common `heapless` types?
-    - Probably not generally possible, because they can be allocated on the
-      stack
-    - `heapless::pool::Box` is an exception
 
 - Are the above requirements on `B` enough to ensure safe DMA?
   - Currently we have:
