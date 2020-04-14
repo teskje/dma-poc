@@ -22,6 +22,7 @@ features = ["rt", "stm32f303"]
 
 [dev-dependencies]
 bbqueue = "0.4"
+heapless = "0.5"
 
 [profile.release]
 codegen-units = 1
