@@ -12,7 +12,47 @@ struct Transfer<B, P> {
 **Question:** What buffer types `B` are safe to use?
 
 
-## Requirement 1: `B` must be a pointer
+## Specific Types
+
+This section lists a few specific types that are commonly used with DMA and
+should be supported by whatever we come up with.
+
+Let `T` be any type.
+
+Let `S` be any type for which any byte pattern is valid. That is, any type
+that fulfills [`zerocopy::FromBytes`].
+
+```rust
+S: zerocopy::FromBytes
+```
+
+### Safe for DMA reads and writes
+
+- `&'static mut S`
+- `alloc::boxed::Box<S>`
+- `alloc::vec::Vec<S>`
+- `bbqueue::GrantW`
+
+### Safe for DMA reads only
+
+Shared references:
+
+- `&'static T`
+- `alloc::rc::Rc<T>`
+- `alloc::arc::Arc<T>`
+- `bbqueue::GrantR`
+
+Have invalid byte patterns:
+
+- `alloc::string::String`
+
+
+[`zerocopy::FromBytes`]: https://docs.rs/zerocopy/0.3.0/zerocopy/trait.FromBytes.html
+
+
+## Requirements
+
+### Requirement 1: `B` must be a pointer
 
 That is, `B` must point to another location in memory where the actual
 buffer is located.
@@ -22,24 +62,24 @@ Otherwise is would be moved around the stack when the `Transfer` struct
 is passed between functions. Its address would change without the DMA
 knowing, and the DMA would read from/write to invalid memory locations.
 
-See [examples/unsound-non-pointer.rs](examples/unsound-non-pointer.rs).
+See [examples/unsound-non-pointer.rs].
 
 ### Solutions
 
 - Requiring `B` to fulfill the `StableDeref` bound enforces this requirement.
 
   ```rust
-  B: Deref + StableDeref    // for buffers DMA reads from
-  B: DerefMut + StableDeref // for buffers DMA writes to
+  B: Deref + StableDeref    // for DMA reads
+  B: DerefMut + StableDeref // for DMA writes
   ```
 
 - **[unsound]** Wrapping `B` in a `Pin` does *not* satisfy this requirement as
   `Pin` doesn't provide sufficient guarantees.
 
-  See [examples/unsound-pin.rs](examples/unsound-pin.rs).
+  See [examples/unsound-pin.rs].
 
 
-## Requirement 2: `B::Target` must be stable
+### Requirement 2: `B::Target` must be stable
 
 That is, dereferencing `B` must always yield the same memory location.
 Otherwise it is not guaranteed that the buffer stays valid for the whole
@@ -74,17 +114,16 @@ to the part of the buffer the DMA doesn't currently access.
 - Requiring `B` to fulfill the `StableDeref` bound enforces this requirement.
 
 
-## Requirement 3: `B::Target` must stay valid if `B` is forgotten
+### Requirement 3: `B::Target` must stay valid if `B` is forgotten
 
-Calling [`mem::forget`](https://doc.rust-lang.org/core/mem/fn.forget.html)
-is safe. This means it is possible, in safe Rust, to lose our handle to the
-`Transfer` struct without having its destructor run. This means we cannot
-rely on the `Transfer` destructor to guarantee memory safety (by stopping or
-waitings for the DMA transfer). This means, `B::Target` must remain a valid
-(i.e. not freed) buffer, as long as `B` is not dropped.
+Calling [`mem::forget`] is safe. This means it is possible, in safe Rust, to
+lose our handle to the `Transfer` struct without having its destructor run.
+This means we cannot rely on the `Transfer` destructor to guarantee memory
+safety (by stopping or waitings for the DMA transfer). This means, `B::Target`
+must remain a valid (i.e. not freed) buffer, as long as `B` is not dropped.
 
 This requirement does not hold for, e.g., references to stack buffers.
-See [examples/unsound-non-static.rs](examples/unsound-non-static.rs).
+See [examples/unsound-non-static.rs].
 
 ### Solutions
 
@@ -102,9 +141,9 @@ See [examples/unsound-non-static.rs](examples/unsound-non-static.rs).
      be freed until the pointer is dropped. Since `mem::forget` explicitly
      does not drop whatever is passed to it, the memory will not be freed
      either.
-     
+
   3. Shared pointer types (`Rc<T>`, `Arc<T>`):
-  
+
      The memory those pointers reference won't be dropped as long as there
      is still a (shared) reference to it (i.e. reference count > 0). Again,
      since `mem::forget` prevents dropping, a shared pointer's reference
@@ -114,21 +153,26 @@ See [examples/unsound-non-static.rs](examples/unsound-non-static.rs).
   to never call `mem::forget` on it or leak it in any other way. This cannot
   be expressed in the type system, unfortunately. But we can provide an `unsafe` constructor method for `Transfer` and document this requirement there.
 
+[`mem::forget`]: https://doc.rust-lang.org/core/mem/fn.forget.html
+[examples/unsound-non-pointer.rs]: examples/unsound-non-pointer.rs
+[examples/unsound-non-static.rs]: examples/unsound-non-static.rs
+[examples/unsound-pin.rs]: examples/unsound-pin.rs
+
 
 ## Open Questions
 
-- What are the specific buffer types we want to support?
-  - I.e., Types that are widely used as buffers in embedded Rust and are
-    actually safe for DMA.
-  - Once we have that list, we can verify any restrictions we come up with
-    against it.
+- What are other specific buffer types we want to support?
+  - `heapless` types?
+    - Probably not generally possible, because they can be allocated on the
+      stack
+    - `heapless::pool::Box` may be an exception?
 
 - Are the above requirements on `B` enough to ensure safe DMA?
   - Currently we have:
 
     ```rust
-    B: Deref + StableDeref + 'static    // for buffers DMA reads from
-    B: DerefMut + StableDeref + 'static // for buffers DMA writes to
+    B: Deref + StableDeref + 'static    // for DMA reads
+    B: DerefMut + StableDeref + 'static // for DMA writes
     ```
   - Can we find counter examples that fulfill these bounds and still lead
     to unsafety?
@@ -144,12 +188,12 @@ See [examples/unsound-non-static.rs](examples/unsound-non-static.rs).
     - If so, should we just restrict it elements to integer types?
     - Or do we want some trait that codifies the "can be safely cast from
       byte" property?
-        - Prior art: [`FromBytes`](https://docs.rs/zerocopy/0.3.0/zerocopy/trait.FromBytes.html)
+        - Prior art: [`zerocopy.FromBytes`](https://docs.rs/zerocopy/0.3.0/zerocopy/trait.FromBytes.html)
   - Do we want to discuss alignment here?
     - Probably not, can be done separately.
     - We should just make sure our final recommendation doesn't prevent
       common approaches to specifying alignment requirements.
-      
+
 - What `Target` should `B` have ?
   - The final type for the DMA must be a slice of some sort. But with a strict specification (i.e. `Target = [T]`) we lose some flexibility, one common use case is to be able to pass in a wrapper type around `MaybeUninit`s or even a `Box<[u8; N]>`.
   - We could also accept wrapper types where `B::Target: Deref<Target = [T]>`, but we need some way to ensure that this second `deref` will not invalidate the `StableDeref` guarantees of `B`, do we need another trait here to express this requirement ? Example that works both with slices or "wrapper" types around slices:
