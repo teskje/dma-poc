@@ -20,6 +20,9 @@ default-features = false
 version = "0.10"
 features = ["rt", "stm32f303"]
 
+[dev-dependencies]
+bbqueue = "0.4"
+
 [profile.release]
 codegen-units = 1
 debug = true
