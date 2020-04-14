@@ -20,6 +20,7 @@ fn main() -> ! {
     }
 }
 
+#[inline(never)]
 fn corrupt_stack() {
     let mut dst = [0; 16];
 
@@ -29,6 +30,7 @@ fn corrupt_stack() {
     // `dst` gets freed here, but the DMA transfer continues writing to it.
 }
 
+#[inline(never)]
 fn use_stack() {
     let buf = [0_u8; 16];
 

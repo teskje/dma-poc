@@ -25,7 +25,7 @@ fn main() -> ! {
     dst[8] = x;
 
     let transfer = unsafe { Transfer::start_nonstatic(SRC, &mut dst) };
-    let (_dma, dst) = transfer.wait().expect("Transfer error");
+    let (_dma, _src, dst) = transfer.wait().expect("Transfer error");
 
     // If the compiler eliminated this load and used the known value 'X'
     // instead, this assert would fail.
