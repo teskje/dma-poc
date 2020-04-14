@@ -33,7 +33,7 @@ that fulfills [`zerocopy::FromBytes`]. For example:
 - `alloc::boxed::Box<S>`
 - `alloc::vec::Vec<S>`
 - `bbqueue::GrantW`
-- `heapless::pool::Box`
+- `heapless::pool::Box<S, _>`
 
 ### Safe for DMA reads only
 
