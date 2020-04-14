@@ -1,4 +1,4 @@
-//! This example demonstrates performing a DMA read into a static buffer.
+//! This example demonstrates performing a DMA read into bbqueue Grant.
 
 #![no_std]
 #![no_main]
