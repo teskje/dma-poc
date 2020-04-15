@@ -2,7 +2,7 @@
 
 use panic_semihosting as _;
 
-use as_slice::AsSlice;
+use as_slice::{AsMutSlice, AsSlice};
 use core::{
     ops::{Deref, DerefMut},
     sync::atomic::{self, Ordering},
@@ -78,7 +78,7 @@ impl<A, B> Transfer<A, B> {
         A: Deref + StableDeref + 'static,
         A::Target: AsSlice<Element = u8>,
         B: DerefMut + StableDeref + 'static,
-        B::Target: AsSlice<Element = u8>,
+        B::Target: AsMutSlice<Element = u8>, // FIXME: this is unsafe
     {
         unsafe { Self::start_nonstatic(src, dst) }
     }
@@ -87,21 +87,21 @@ impl<A, B> Transfer<A, B> {
     ///
     /// If `dst` is not `'static`, callers must ensure that `mem::forget`
     /// is never called on the returned `Transfer`.
-    pub unsafe fn start_nonstatic(src: A, dst: B) -> Self
+    pub unsafe fn start_nonstatic(src: A, mut dst: B) -> Self
     where
         A: Deref + StableDeref,
         A::Target: AsSlice<Element = u8>,
         B: DerefMut + StableDeref,
-        B::Target: AsSlice<Element = u8>,
+        B::Target: AsMutSlice<Element = u8>, // FIXME: this is unsafe
     {
         let mut dma = Dma::mem2mem();
         {
             let src = src.as_slice();
-            let dst = dst.as_slice();
+            let dst = dst.as_mut_slice();
             assert!(dst.len() >= src.len());
 
             dma.set_paddr(src.as_ptr() as u32);
-            dma.set_maddr(dst.as_ptr() as u32);
+            dma.set_maddr(dst.as_mut_ptr() as u32);
             dma.set_ndt(src.len() as u16);
         }
 

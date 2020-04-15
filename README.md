@@ -186,23 +186,37 @@ enforce it for DMA reads too, though, for the sake of symmetry and sanity.
 
     ```rust
     // for DMA reads:
-    B: Deref + StableDeref + 'static,
-    B::Target: AsSlice<Element = Word>,  // or: AsRef<[Word]>
+    B: Deref<Target = [Word]> + StableDeref + 'static,
 
     // for DMA writes:
-    B: DerefMut + StableDeref + 'static
-    B::Target: AsSlice<Element = Word>,  // or: AsRef<[Word]>
+    B: DerefMut<Target = [Word]> + StableDeref + 'static
     ```
 
     ... with `Word` implemented for `u8`, `u16`, `u32`.
 
   - Can we find counter examples that fulfill these bounds and still lead
-    to unsafety?
-      - Note that implementations of `AsSlice::as_slice` are not limited to
-        doing "sensible" things. E.g., it could return a different slice each
-        time it is called. Is it possible to introduce unsafety that way?
+
+- The above trait bounds are too restrictive as the allow only `[Word]` buffers
+  - We also want to support:
+    - `[Word; N]`
+    - `Wrapper([Word; N])`
+    - `MaybeUninit([Word; N])` (DMA writes only)
+    - ... (what else?)
+  - For DMA reads requiring `B::Target: AsSlice<Element = Word>`  should be fine
+  - For DMA writes:
+    - We can *not* use `AsSlice` as that would enable producing invalid
+      values for some buffer types (see [examples/unsound-asref.rs])
+    - We can *not* use `AsMutSlice` as that would make it possible to break
+      Requirement 2 again
+    - We could use some `unsafe` marker trait that makes implementors promise
+      `as_mut_slice` always returns the same slice ("`StableAsSlice`")
+    - However, a solution based on `AsMutSlice` makes using `MaybeUninit`
+      impossible, since it is UB to get a reference to an uninitialized value
 
 - Do we want to discuss alignment here?
   - Probably not, can be done separately.
   - We should just make sure our final recommendation doesn't prevent
     common approaches to specifying alignment requirements.
+
+
+[examples/unsound-asref.rs]: examples/unsound-asref.rs
