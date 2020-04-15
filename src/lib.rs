@@ -2,14 +2,13 @@
 
 use panic_semihosting as _;
 
+use as_slice::AsSlice;
 use core::{
-    mem,
     ops::{Deref, DerefMut},
     sync::atomic::{self, Ordering},
 };
 use stable_deref_trait::StableDeref;
 use stm32f3::stm32f303 as pac;
-use zerocopy::FromBytes;
 
 /// Thin wrapper around the DMA1 peripheral, using channel 1.
 pub struct Dma(pac::DMA1);
@@ -77,8 +76,9 @@ impl<A, B> Transfer<A, B> {
     pub fn start(src: A, dst: B) -> Self
     where
         A: Deref + StableDeref + 'static,
+        A::Target: AsSlice<Element = u8>,
         B: DerefMut + StableDeref + 'static,
-        B::Target: FromBytes,
+        B::Target: AsSlice<Element = u8>,
     {
         unsafe { Self::start_nonstatic(src, dst) }
     }
@@ -87,21 +87,22 @@ impl<A, B> Transfer<A, B> {
     ///
     /// If `dst` is not `'static`, callers must ensure that `mem::forget`
     /// is never called on the returned `Transfer`.
-    pub unsafe fn start_nonstatic(src: A, mut dst: B) -> Self
+    pub unsafe fn start_nonstatic(src: A, dst: B) -> Self
     where
         A: Deref + StableDeref,
+        A::Target: AsSlice<Element = u8>,
         B: DerefMut + StableDeref,
-        B::Target: FromBytes,
+        B::Target: AsSlice<Element = u8>,
     {
         let mut dma = Dma::mem2mem();
         {
-            let (src, dst) = (&*src, &mut *dst);
-            let len = mem::size_of_val(src);
-            assert!(mem::size_of_val(dst) >= len);
+            let src = src.as_slice();
+            let dst = dst.as_slice();
+            assert!(dst.len() >= src.len());
 
-            dma.set_paddr(src as *const _ as *const u8 as u32);
-            dma.set_maddr(dst as *mut _ as *mut u8 as u32);
-            dma.set_ndt(len as u16);
+            dma.set_paddr(src.as_ptr() as u32);
+            dma.set_maddr(dst.as_ptr() as u32);
+            dma.set_ndt(src.len() as u16);
         }
 
         // Prevent preceding reads/writes on the buffer from being moved past

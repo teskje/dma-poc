@@ -10,7 +10,6 @@ cortex-m = "0.6"
 cortex-m-rt = "0.6"
 cortex-m-semihosting = "0.3"
 panic-semihosting = "0.5"
-zerocopy = "0.3"
 
 [dependencies.stable_deref_trait]
 version = "1"

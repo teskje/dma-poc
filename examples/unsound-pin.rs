@@ -4,7 +4,7 @@
 #![no_std]
 #![no_main]
 
-use as_slice::AsMutSlice;
+use as_slice::AsSlice;
 use core::{
     ops::{Deref, DerefMut},
     pin::Pin,
@@ -24,16 +24,16 @@ pub struct Transfer<B> {
 }
 
 impl<B> Transfer<B> {
-    pub fn start(src: &'static [u8], mut dst: Pin<B>) -> Self
+    pub fn start(src: &'static [u8], dst: Pin<B>) -> Self
     where
         B: DerefMut + 'static,
-        B::Target: AsMutSlice<Element = u8> + Unpin,
+        B::Target: AsSlice<Element = u8> + Unpin,
     {
-        let slice = dst.as_mut_slice();
+        let slice = dst.as_slice();
 
         let mut dma = Dma::mem2mem();
         dma.set_paddr(src.as_ptr() as u32);
-        dma.set_maddr(slice.as_mut_ptr() as u32);
+        dma.set_maddr(slice.as_ptr() as u32);
         dma.set_ndt(slice.len() as u16);
 
         atomic::compiler_fence(Ordering::Release);

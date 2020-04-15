@@ -6,6 +6,7 @@
 
 use core::mem;
 use cortex_m_rt::entry;
+use cortex_m_semihosting::hprintln;
 use dma_poc::Transfer;
 
 const SRC: &[u8; 16] = b"THIS IS DMADATA!";
@@ -23,6 +24,9 @@ fn main() -> ! {
 #[inline(never)]
 fn corrupt_stack() {
     let mut dst = [0; 16];
+
+    // for some reason necessary to trigger the panic
+    hprintln!("{}", dst[0]).unwrap();
 
     let transfer = unsafe { Transfer::start_nonstatic(SRC, &mut dst) };
     mem::forget(transfer);

@@ -3,7 +3,7 @@
 #![no_std]
 #![no_main]
 
-use as_slice::AsMutSlice;
+use as_slice::AsSlice;
 use core::sync::atomic::{self, Ordering};
 use cortex_m_rt::entry;
 use cortex_m_semihosting::hprintln;
@@ -18,15 +18,15 @@ pub struct Transfer<B> {
 }
 
 impl<B> Transfer<B> {
-    pub fn start(src: &'static [u8], mut dst: B) -> Self
+    pub fn start(src: &'static [u8], dst: B) -> Self
     where
-        B: AsMutSlice<Element = u8>,
+        B: AsSlice<Element = u8>,
     {
-        let slice = dst.as_mut_slice();
+        let slice = dst.as_slice();
 
         let mut dma = Dma::mem2mem();
         dma.set_paddr(src.as_ptr() as u32);
-        dma.set_maddr(slice.as_mut_ptr() as u32);
+        dma.set_maddr(slice.as_ptr() as u32);
         dma.set_ndt(slice.len() as u16);
 
         atomic::compiler_fence(Ordering::Release);
