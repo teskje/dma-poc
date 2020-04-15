@@ -185,49 +185,24 @@ enforce it for DMA reads too, though, for the sake of symmetry and sanity.
   - Currently we have:
 
     ```rust
-    B: Deref + StableDeref + 'static    // for DMA reads
-    B: DerefMut + StableDeref + 'static // for DMA writes
+    // for DMA reads:
+    B: Deref + StableDeref + 'static,
+    B::Target: AsSlice<Element = Word>,  // or: AsRef<[Word]>
+
+    // for DMA writes:
+    B: DerefMut + StableDeref + 'static
+    B::Target: AsSlice<Element = Word>,  // or: AsRef<[Word]>
     ```
+
+    ... with `Word` implemented for `u8`, `u16`, `u32`.
+
   - Can we find counter examples that fulfill these bounds and still lead
     to unsafety?
+      - Note that implementations of `AsSlice::as_slice` are not limited to
+        doing "sensible" things. E.g., it could return a different slice each
+        time it is called. Is it possible to introduce unsafety that way?
 
-- What requirements do we need for `B::Target` itself?
-  - Our current `As(Mut)Slice` may be not good enough as that's also not
-    guaranteed to be stable.
-    - On the other hand `AsSlice` may be fine since it shouldn't be able to
-      drop our DMA buffer, since it only gets an immutable reference?
-    - And maybe we don't need `AsMutSlice`?
-  - Do we need to restrict the type of elements the buffer can have, to
-    ensure a DMA write doesn't create values with invalid bit-patterns?
-    - If so, should we just restrict it elements to integer types?
-    - Or do we want some trait that codifies the "can be safely cast from
-      byte" property?
-        - Prior art: [`zerocopy.FromBytes`](https://docs.rs/zerocopy/0.3.0/zerocopy/trait.FromBytes.html)
-  - Do we want to discuss alignment here?
-    - Probably not, can be done separately.
-    - We should just make sure our final recommendation doesn't prevent
-      common approaches to specifying alignment requirements.
-
-- What `Target` should `B` have ?
-  - The final type for the DMA must be a slice of some sort. But with a strict specification (i.e. `Target = [T]`) we lose some flexibility, one common use case is to be able to pass in a wrapper type around `MaybeUninit`s or even a `Box<[u8; N]>`.
-  - We could also accept wrapper types where `B::Target: Deref<Target = [T]>`, but we need some way to ensure that this second `deref` will not invalidate the `StableDeref` guarantees of `B`, do we need another trait here to express this requirement ? Example that works both with slices or "wrapper" types around slices:
-    ```rust
-    use core::ops::Deref;
-    use core::convert::AsRef;
-
-    fn print_it<B>(buffer: B)
-    where
-      B: Deref,
-      // AsRef is used as an example here, but it doesn't guarantee our requirements
-      B::Target: AsRef<[u8]>,
-    {
-      println!("{:?}", &*buffer.as_ref());
-    }
-
-    fn main() {
-      let buffer = Box::new([1u8; 4]);
-      let buffer2 = [0u8; 4];
-      print_it(buffer);
-      print_it(&buffer2[..])
-    }
-    ```
+- Do we want to discuss alignment here?
+  - Probably not, can be done separately.
+  - We should just make sure our final recommendation doesn't prevent
+    common approaches to specifying alignment requirements.
