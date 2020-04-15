@@ -56,7 +56,7 @@ knowing, and the DMA would read from/write to invalid memory locations.
 
 See [examples/unsound-non-pointer.rs].
 
-### Solutions
+#### Solutions
 
 - Requiring `B` to fulfill the `StableDeref` bound enforces this requirement.
 
@@ -101,7 +101,7 @@ happens after a DMA transfer was started on `B`. This seems overly restrictive,
 since it makes it impossible to, e.g., to provide the user with a way to write
 to the part of the buffer the DMA doesn't currently access.
 
-### Solutions
+#### Solutions
 
 - Requiring `B` to fulfill the `StableDeref` bound enforces this requirement.
 
@@ -117,7 +117,7 @@ must remain a valid (i.e. not freed) buffer, as long as `B` is not dropped.
 This requirement does not hold for, e.g., references to stack buffers.
 See [examples/unsound-non-static.rs].
 
-### Solutions
+#### Solutions
 
 - Adding a `'static` bound, together with the bounds from Requirement 1,
   enforces this requirement. This way, we allow only:
@@ -145,10 +145,38 @@ See [examples/unsound-non-static.rs].
   to never call `mem::forget` on it or leak it in any other way. This cannot
   be expressed in the type system, unfortunately. But we can provide an `unsafe` constructor method for `Transfer` and document this requirement there.
 
+
+### Requirement 4: `B::Target` must be valid for every possible byte pattern
+
+When doing a DMA write into `B::Target`, we have no way to ensure at the
+type system-level that the DMA writes only values that are valid according
+to `B::Target`'s type. Since [producing an invalid value leads to UB][ub],
+we can only allow target types for which all byte patterns are known to be
+valid values.
+
+This is only a necessary requirement for DMA writes. It might be sensible to
+enforce it for DMA reads too, though, for the sake of symmetry and sanity.
+
+#### Solutions
+
+- Allow only the common DMA buffer types `[u8]`, `[u16]`, `[u32]`. These
+  are known to be always valid, regardless of the underlying byte pattern.
+  It's not clear if there is any practical need for supporting other types,
+  especially because everything can be cast to a `[u8]` if necessary.
+
+- Introduce a new marker trait for types that are valid for every byte pattern
+  and bound `B::Target` on that. There is prior art in [`zerocopy::FromBytes`].
+  This would introduce additional maintenance effort, since we probably don't
+  want to depend on `zerocopy` directly, so we'd have to implement that
+  ourselves.
+
+
 [`mem::forget`]: https://doc.rust-lang.org/core/mem/fn.forget.html
+[`zerocopy::FromBytes`]: https://docs.rs/zerocopy/0.3.0/zerocopy/trait.FromBytes.html
 [examples/unsound-non-pointer.rs]: examples/unsound-non-pointer.rs
 [examples/unsound-non-static.rs]: examples/unsound-non-static.rs
 [examples/unsound-pin.rs]: examples/unsound-pin.rs
+[ub]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
 
 
 ## Open Questions
