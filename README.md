@@ -17,39 +17,29 @@ struct Transfer<B, P> {
 This section lists a few specific types that are commonly used with DMA and
 should be supported by whatever we come up with.
 
-Let `T` be any type.
-
-Let `S` be any type for which any byte pattern is valid. That is, any type
-that fulfills [`zerocopy::FromBytes`]. For example:
-
-- `u8`, `u16`, `u32`, `u64`
-- `[u8]`, `[u16]`, `[u32]`, `[u64]`,
-- `[u8; N]`, `[u16; N]`, `[u32; N]`, `[u64; N]`
-- `Wrapper([u8; 16])`
+Note: Most of the below types reference `[u8]` buffers. Aside from `u8`, we'd
+like to support at least the larger word sizes `u16` and `u32`.
 
 ### Safe for DMA reads and writes
 
-- `&'static mut S`
-- `alloc::boxed::Box<S>`
-- `alloc::vec::Vec<S>`
-- `bbqueue::GrantW`
-- `heapless::pool::Box<S, _>`
+- `&'static mut [u8]`
+- `alloc::boxed::Box<[u8]>`
+- `alloc::vec::Vec<u8>`
+- `bbqueue::GrantW<'static, N>`
+- `heapless::pool::Box<[u8], _>`
 
 ### Safe for DMA reads only
 
-Shared references:
+Shared/read-only references:
 
-- `&'static T`
-- `alloc::rc::Rc<T>`
-- `alloc::arc::Arc<T>`
-- `bbqueue::GrantR`
+- `&'static [u8]`
+- `alloc::rc::Rc<[u8]>`
+- `alloc::arc::Arc<[u8]>`
+- `bbqueue::GrantR<'static, N>`
 
 Have invalid byte patterns:
 
 - `alloc::string::String`
-
-
-[`zerocopy::FromBytes`]: https://docs.rs/zerocopy/0.3.0/zerocopy/trait.FromBytes.html
 
 
 ## Requirements
