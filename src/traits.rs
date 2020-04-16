@@ -1,16 +1,15 @@
 use as_slice::AsSlice;
-use core::{
-    mem,
-    ops::{Deref, DerefMut},
-};
+use core::ops::{Deref, DerefMut};
 use stable_deref_trait::StableDeref;
 
 pub unsafe trait DmaReadBuffer: Deref {
-    fn dma_read_buffer(&self) -> (*const u8, usize);
+    type Element;
+    fn dma_read_buffer(&self) -> (*const Self::Element, usize);
 }
 
 pub unsafe trait DmaWriteBuffer: DerefMut {
-    fn dma_write_buffer(&mut self) -> (*mut u8, usize);
+    type Element;
+    fn dma_write_buffer(&mut self) -> (*mut Self::Element, usize);
 }
 
 unsafe impl<B, W> DmaReadBuffer for B
@@ -18,29 +17,78 @@ where
     B: Deref + StableDeref,
     B::Target: AsSlice<Element = W>,
 {
-    fn dma_read_buffer(&self) -> (*const u8, usize) {
+    type Element = W;
+    fn dma_read_buffer(&self) -> (*const Self::Element, usize) {
         let slice = self.as_slice();
-        let ptr = slice.as_ptr() as *const u8;
-        let len = slice.len() * mem::size_of::<W>();
+        let ptr = slice.as_ptr() as *const Self::Element;
+        let len = slice.len();
         (ptr, len)
     }
 }
 
-pub unsafe trait DmaWriteTarget {}
+pub unsafe trait DmaWriteTarget {
+    type Element;
+    fn len(&self) -> usize;
+}
 
-unsafe impl DmaWriteTarget for u8 {}
-unsafe impl DmaWriteTarget for u16 {}
-unsafe impl DmaWriteTarget for u32 {}
-unsafe impl DmaWriteTarget for [u8] {}
-unsafe impl DmaWriteTarget for [u16] {}
-unsafe impl DmaWriteTarget for [u32] {}
+unsafe impl DmaWriteTarget for u8 {
+    type Element = u8;
+    fn len(&self) -> usize {
+        1
+    }
+}
+unsafe impl DmaWriteTarget for u16 {
+    type Element = u16;
+    fn len(&self) -> usize {
+        1
+    }
+}
+unsafe impl DmaWriteTarget for u32 {
+    type Element = u32;
+    fn len(&self) -> usize {
+        1
+    }
+}
+unsafe impl DmaWriteTarget for [u8] {
+    type Element = u8;
+    fn len(&self) -> usize {
+        self.len()
+    }
+}
+unsafe impl DmaWriteTarget for [u16] {
+    type Element = u16;
+    fn len(&self) -> usize {
+        self.len()
+    }
+}
+unsafe impl DmaWriteTarget for [u32] {
+    type Element = u32;
+    fn len(&self) -> usize {
+        self.len()
+    }
+}
 
 macro_rules! array_impls {
     ( $( $i:expr, )+ ) => {
         $(
-            unsafe impl DmaWriteTarget for [u8; $i] {}
-            unsafe impl DmaWriteTarget for [u16; $i] {}
-            unsafe impl DmaWriteTarget for [u32; $i] {}
+            unsafe impl DmaWriteTarget for [u8; $i] {
+                type Element = u8;
+                fn len(&self) -> usize {
+                    $i
+                }
+            }
+            unsafe impl DmaWriteTarget for [u16; $i] {
+                type Element = u16;
+                fn len(&self) -> usize {
+                    $i
+                }
+            }
+            unsafe impl DmaWriteTarget for [u32; $i] {
+                type Element = u32;
+                fn len(&self) -> usize {
+                    $i
+                }
+            }
         )+
     };
 }
@@ -58,10 +106,11 @@ where
     B: DerefMut<Target = T> + StableDeref,
     T: DmaWriteTarget + ?Sized,
 {
-    fn dma_write_buffer(&mut self) -> (*mut u8, usize) {
+    type Element = <T as DmaWriteTarget>::Element;
+    fn dma_write_buffer(&mut self) -> (*mut Self::Element, usize) {
         let target = self.deref_mut();
-        let ptr = target as *mut T as *mut u8;
-        let len = mem::size_of_val(target);
+        let len = target.len();
+        let ptr = target as *mut T as *mut Self::Element;
         (ptr, len)
     }
 }
