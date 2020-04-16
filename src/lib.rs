@@ -1,14 +1,13 @@
 #![no_std]
 
+mod traits;
+
 use panic_semihosting as _;
 
-use as_slice::{AsMutSlice, AsSlice};
-use core::{
-    ops::{Deref, DerefMut},
-    sync::atomic::{self, Ordering},
-};
-use stable_deref_trait::StableDeref;
+use core::sync::atomic::{self, Ordering};
 use stm32f3::stm32f303 as pac;
+
+pub use traits::{DmaReadBuffer, DmaWriteBuffer};
 
 /// Thin wrapper around the DMA1 peripheral, using channel 1.
 pub struct Dma(pac::DMA1);
@@ -67,18 +66,16 @@ impl Dma {
 }
 
 /// Safe (?) abstraction of a DMA read transfer.
-pub struct Transfer<A, B> {
+pub struct Transfer<R, W> {
     // always `Some` outside of `Drop::drop`
-    inner: Option<TransferInner<A, B>>,
+    inner: Option<TransferInner<R, W>>,
 }
 
-impl<A, B> Transfer<A, B> {
-    pub fn start(src: A, dst: B) -> Self
+impl<R, W> Transfer<R, W> {
+    pub fn start(src: R, dst: W) -> Self
     where
-        A: Deref + StableDeref + 'static,
-        A::Target: AsSlice<Element = u8>,
-        B: DerefMut + StableDeref + 'static,
-        B::Target: AsMutSlice<Element = u8>, // FIXME: this is unsafe
+        R: DmaReadBuffer + 'static,
+        W: DmaWriteBuffer + 'static,
     {
         unsafe { Self::start_nonstatic(src, dst) }
     }
@@ -87,22 +84,20 @@ impl<A, B> Transfer<A, B> {
     ///
     /// If `dst` is not `'static`, callers must ensure that `mem::forget`
     /// is never called on the returned `Transfer`.
-    pub unsafe fn start_nonstatic(src: A, mut dst: B) -> Self
+    pub unsafe fn start_nonstatic(src: R, mut dst: W) -> Self
     where
-        A: Deref + StableDeref,
-        A::Target: AsSlice<Element = u8>,
-        B: DerefMut + StableDeref,
-        B::Target: AsMutSlice<Element = u8>, // FIXME: this is unsafe
+        R: DmaReadBuffer,
+        W: DmaWriteBuffer,
     {
         let mut dma = Dma::mem2mem();
         {
-            let src = src.as_slice();
-            let dst = dst.as_mut_slice();
-            assert!(dst.len() >= src.len());
+            let (src_ptr, src_len) = src.dma_read_buffer();
+            let (dst_ptr, dst_len) = dst.dma_write_buffer();
+            assert!(dst_len >= src_len);
 
-            dma.set_paddr(src.as_ptr() as u32);
-            dma.set_maddr(dst.as_mut_ptr() as u32);
-            dma.set_ndt(src.len() as u16);
+            dma.set_paddr(src_ptr as u32);
+            dma.set_maddr(dst_ptr as u32);
+            dma.set_ndt(src_len as u16);
         }
 
         // Prevent preceding reads/writes on the buffer from being moved past
@@ -116,7 +111,7 @@ impl<A, B> Transfer<A, B> {
         }
     }
 
-    pub fn wait(mut self) -> Result<(Dma, A, B), ()> {
+    pub fn wait(mut self) -> Result<(Dma, R, W), ()> {
         let mut inner = self.inner.take().unwrap();
 
         while !inner.dma.transfer_complete() {
@@ -131,13 +126,13 @@ impl<A, B> Transfer<A, B> {
     }
 }
 
-struct TransferInner<A, B> {
+struct TransferInner<R, W> {
     dma: Dma,
-    src: A,
-    dst: B,
+    src: R,
+    dst: W,
 }
 
-impl<A, B> TransferInner<A, B> {
+impl<R, W> TransferInner<R, W> {
     fn stop(&mut self) {
         self.dma.disable();
 
@@ -148,7 +143,7 @@ impl<A, B> TransferInner<A, B> {
     }
 }
 
-impl<A, B> Drop for Transfer<A, B> {
+impl<R, W> Drop for Transfer<R, W> {
     fn drop(&mut self) {
         if let Some(mut inner) = self.inner.take() {
             inner.stop();

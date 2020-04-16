@@ -23,7 +23,7 @@ fn main() -> ! {
 
 #[inline(never)]
 fn corrupt_stack() {
-    let mut dst = [0; 16];
+    let mut dst = [0_u8; 16];
 
     // for some reason necessary to trigger the panic
     hprintln!("{}", dst[0]).unwrap();
