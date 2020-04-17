@@ -95,8 +95,8 @@ impl<R, W> Transfer<R, W> {
             let (dst_ptr, dst_len) = dst.dma_write_buffer();
             assert!(dst_len >= src_len);
 
-            dma.set_paddr(src_ptr as u32);
-            dma.set_maddr(dst_ptr as u32);
+            dma.set_paddr(src_ptr as *const u8 as u32);
+            dma.set_maddr(dst_ptr as *mut u8 as u32);
             dma.set_ndt(src_len as u16);
         }
 
