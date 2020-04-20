@@ -1,3 +1,15 @@
+This repo was created to document the progress of the ["DMA API Documentation"
+focus project].
+
+This README lists the current state of our discussions regarding the topic
+of defining a safe DMA API. The repository also contains a prototype
+implementation of these ideas, as well as a number of examples that demonstrate
+their usability.
+
+
+["DMA API Documentation" focus project]: https://github.com/rust-embedded/wg/blob/master/projects/in-progress/0440-dma-api-documentation.md
+
+
 # DMA Buffer Type
 
 Assuming we have a `Transfer` struct abstracting a DMA transfer:
@@ -179,39 +191,112 @@ enforce it for DMA reads too, though, for the sake of symmetry and sanity.
 [ub]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
 
 
+## Unsafe Traits
+
+Given the above requirements and solutions, we end up with with the following
+minimal trait bounds:
+
+```rust
+unsafe trait Word {}
+unsafe impl Word for u8 {}
+unsafe impl Word for u16 {}
+unsafe impl Word for u32 {}
+
+// for DMA reads:
+B: Deref<Target = [Word]> + StableDeref + 'static,
+
+// for DMA writes:
+B: DerefMut<Target = [Word]> + StableDeref + 'static
+```
+
+These bounds allow only `[Word]` buffers, which makes them too restrictive
+for some practical use-cases. We also want to support:
+
+- `[Word; N]`
+  - `CustomWrapper([Word; N])`
+  - `MaybeUninit([Word; N])`
+  - ... (what else?)
+
+To do so, we need to introduce another trait bound for `B::Target`, instead
+of fixing it to `[Word]`.
+
+Existing DMA implementations usually use `As{Mut}Slice<Element = Word>` or
+`As{Ref,Mut}<[Word]>` for the purpose. While this is probably sound for the
+DMA read case (i.e. it cannot load to memory unsafety), Using `AsMutSlice`/
+`AsMut` for DMA writes allows breaking Requirement 2 ("stable buffer") again,
+since we cannot trust the implementation of `as_mut_slice`/`as_mut` to behave
+in a sane way, similarly to how we couldn't trust `deref_mut`.
+
+The only way around this (?) is to introduce another `unsafe` trait to enforce
+our safety requirements. We have the choice between another marker trait akin
+to `StableDeref` that ensures `AsMutSlice`/`AsMut` is safe to use, and a more
+general `DmaBuffer` trait that enforces all the DMA safety requirements. The
+latter choice seems preferable since it is more flexible and more readable
+as it encapsulates the notion of a DMA buffer into a single trait bound instead
+of four.
+
+Thus we suggest introducing the following two new DMA traits (naming still
+subject to bike-shedding):
+
+```rust
+unsafe trait DmaReadBuffer {
+    type Word;
+
+    fn dma_read_buffer(&self) -> (*const Self::Word, usize);
+}
+
+pub unsafe trait DmaWriteBuffer {
+    type Word;
+
+    fn dma_write_buffer(&mut self) -> (*mut Self::Word, usize);
+}
+```
+
+Both traits provide access to the start and the length (in `Word`s) of the
+DMA buffer. The DMA safety requirements must be fulfilled by any type that
+wants to safely implement the traits.
+
+We can provide blanket implementations for common DMA types that we know
+to be safe. For example:
+
+```rust
+unsafe impl<B, W> DmaReadBuffer for B
+where
+    B: Deref + StableDeref,
+    B::Target: AsSlice<Element = W>,
+    W: Word,
+{
+    type Word = W;
+
+    fn dma_read_buffer(&self) -> (*const Self::Word, usize) {
+        let slice = self.as_slice();
+        (slice.as_ptr(), slice.len())
+    }
+}
+```
+
+Note that this blanked impl does not require `'static` on `B`, so
+Requirement 3 is not enforced here. This is to enable using stack-based
+DMA buffers with a `Transfer` implementation that supports this (via an
+`unsafe` constructor). Functions that want to take a DMA buffer without
+`unsafe` still need to specify the `'static` bound in addition to
+`DmaReadBuffer`.
+
+
 ## Open Questions
 
-- Are the above requirements on `B` enough to ensure safe DMA?
-  - Currently we have:
+- Are the above requirements on `B` and `B::Target` enough to ensure safe DMA?
+  - Can we find counter examples that fulfill them and still lead to unsafe
+    or undefined behavior?
 
-    ```rust
-    // for DMA reads:
-    B: Deref<Target = [Word]> + StableDeref + 'static,
+- Is the "Specific Types" section above complete? Are we missing any important
+  types used as DMA buffers in real-world projects?
 
-    // for DMA writes:
-    B: DerefMut<Target = [Word]> + StableDeref + 'static
-    ```
-
-    ... with `Word` implemented for `u8`, `u16`, `u32`.
-
-  - Can we find counter examples that fulfill these bounds and still lead
-
-- The above trait bounds are too restrictive as the allow only `[Word]` buffers
-  - We also want to support:
-    - `[Word; N]`
-    - `Wrapper([Word; N])`
-    - `MaybeUninit([Word; N])` (DMA writes only)
-    - ... (what else?)
-  - For DMA reads requiring `B::Target: AsSlice<Element = Word>`  should be fine
-  - For DMA writes:
-    - We can *not* use `AsSlice` as that would enable producing invalid
-      values for some buffer types (see [examples/unsound-asref.rs])
-    - We can *not* use `AsMutSlice` as that would make it possible to break
-      Requirement 2 again
-    - We could use some `unsafe` marker trait that makes implementors promise
-      `as_mut_slice` always returns the same slice ("`StableAsSlice`")
-    - However, a solution based on `AsMutSlice` makes using `MaybeUninit`
-      impossible, since it is UB to get a reference to an uninitialized value
+- Are the proposed `unsafe` traits a good fit for real-world use cases?
+  - Are there scenarios where they would be insufficient?
+  - Are there better (more ergonomic) ways to enforce the DMA safety
+    requirements?
+  - Issue: #1
 
 - Do we want to discuss alignment here?
   - Probably not, can be done separately.
@@ -219,4 +304,13 @@ enforce it for DMA reads too, though, for the sake of symmetry and sanity.
     common approaches to specifying alignment requirements.
 
 
-[examples/unsound-asref.rs]: examples/unsound-asref.rs
+## How to Help
+
+Any feedback and the content of this document is welcome! You can talk directly
+to the project contributors (@korken89, @thalesfragoso, @ra-kete) or open
+an issue if you feel any of this needs more consideration.
+
+There are a couple of "Open Questions" listed above that we are not entirely
+sure about yet, so feedback from the embedded Rust community would be especially
+welcome here. In particular, please have a look at Issue #1 discussing DMA
+traits.
