@@ -296,7 +296,7 @@ DMA buffers with a `Transfer` implementation that supports this (via an
   - Are there scenarios where they would be insufficient?
   - Are there better (more ergonomic) ways to enforce the DMA safety
     requirements?
-  - Issue: #1
+  - Issue: [#1](https://github.com/ra-kete/dma-poc/issues/1)
 
 - Do we want to discuss alignment here?
   - Probably not, can be done separately.
@@ -312,5 +312,5 @@ an issue if you feel any of this needs more consideration.
 
 There are a couple of "Open Questions" listed above that we are not entirely
 sure about yet, so feedback from the embedded Rust community would be especially
-welcome here. In particular, please have a look at Issue #1 discussing DMA
-traits.
+welcome here. In particular, please have a look at Issue
+[#1](https://github.com/ra-kete/dma-poc/issues/1) discussing DMA traits.
