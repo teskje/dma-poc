@@ -253,8 +253,13 @@ pub unsafe trait DmaWriteBuffer {
 ```
 
 Both traits provide access to the start and the length (in `Word`s) of the
-DMA buffer. The DMA safety requirements must be fulfilled by any type that
-wants to safely implement the traits.
+DMA buffer. They do so using a raw pointer and a separate length value instead
+of a single slice return value. The reason for this design is that it makes it
+possible to also support uninitialized `MaybeUninit` values, for which creating
+references would be undefined behavior.
+
+The DMA safety requirements must be fulfilled by any type that wants to safely
+implement the above traits.
 
 We can provide blanket implementations for common DMA types that we know
 to be safe. For example:
