@@ -222,7 +222,7 @@ of fixing it to `[Word]`.
 
 Existing DMA implementations usually use `As{Mut}Slice<Element = Word>` or
 `As{Ref,Mut}<[Word]>` for the purpose. While this is probably sound for the
-DMA read case (i.e. it cannot load to memory unsafety), Using `AsMutSlice`/
+DMA read case (i.e. it cannot lead to memory unsafety), Using `AsMutSlice`/
 `AsMut` for DMA writes allows breaking Requirement 2 ("stable buffer") again,
 since we cannot trust the implementation of `as_mut_slice`/`as_mut` to behave
 in a sane way, similarly to how we couldn't trust `deref_mut`.
