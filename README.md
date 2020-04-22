@@ -213,9 +213,9 @@ These bounds allow only `[Word]` buffers, which makes them too restrictive
 for some practical use-cases. We also want to support:
 
 - `[Word; N]`
-  - `CustomWrapper([Word; N])`
-  - `MaybeUninit([Word; N])`
-  - ... (what else?)
+- `CustomWrapper([Word; N])`
+- `MaybeUninit([Word; N])`
+- ... (what else?)
 
 To do so, we need to introduce another trait bound for `B::Target`, instead
 of fixing it to `[Word]`.
