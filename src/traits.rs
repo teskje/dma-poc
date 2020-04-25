@@ -34,8 +34,8 @@ pub unsafe trait DmaReadBuffer {
     ///
     /// - This function must always return the same values, if called multiple
     ///   times.
-    /// - The memory specified by the returned pointer and size must be fully
-    ///   readable by the DMA peripheral.
+    /// - The memory specified by the returned pointer and size must not be
+    ///   freed as long as `self` is not dropped.
     fn dma_read_buffer(&self) -> (*const Self::Word, usize);
 }
 
@@ -62,8 +62,8 @@ pub unsafe trait DmaWriteBuffer {
     ///
     /// - This function must always return the same values, if called multiple
     ///   times.
-    /// - The memory specified by the returned pointer and size must be fully
-    ///   writable by the DMA peripheral.
+    /// - The memory specified by the returned pointer and size must not be 
+    ///   freed as long as `self` is not dropped.
     fn dma_write_buffer(&mut self) -> (*mut Self::Word, usize);
 }
 
