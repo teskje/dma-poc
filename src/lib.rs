@@ -65,7 +65,7 @@ impl Dma {
     }
 }
 
-/// Safe (?) abstraction of a DMA read transfer.
+/// Safe abstraction of a DMA read transfer.
 pub struct Transfer<R, W> {
     // always `Some` outside of `Drop::drop`
     inner: Option<TransferInner<R, W>>,
