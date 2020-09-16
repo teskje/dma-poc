@@ -6,9 +6,11 @@ of defining a safe DMA API. The repository also contains a prototype
 implementation of these ideas, as well as a number of examples that demonstrate
 their usability.
 
+Further work on this concept can be found in the [`embedded-dma`] crate.
+
 
 ["DMA API Documentation" focus project]: https://github.com/rust-embedded/wg/blob/master/projects/in-progress/0440-dma-api-documentation.md
-
+[`embedded-dma`]: https://github.com/rust-embedded/embedded-dma
 
 # DMA Buffer Type
 
